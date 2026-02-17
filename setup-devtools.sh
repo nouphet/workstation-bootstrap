@@ -28,6 +28,7 @@ fi
 
 # ---------- バージョン設定 (必要に応じて変更) ----------
 TERRAFORM_VERSION="1.10.5"
+TERRAGRUNT_VERSION=""  # 空欄 = 最新版を自動取得
 TELEPORT_VERSION="17"  # メジャーバージョン (aptリポジトリ用)
 
 # ---------- 共通: パッケージ更新 & 基本ツール ----------
@@ -99,6 +100,22 @@ else
   info "terraform-docs 既にインストール済み"
 fi
 
+# --- Terragrunt ---
+if ! command -v terragrunt &>/dev/null; then
+  if [[ -n "$TERRAGRUNT_VERSION" ]]; then
+    TG_VER="$TERRAGRUNT_VERSION"
+  else
+    TG_VER=$(curl -s https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest | jq -r '.tag_name' | tr -d 'v')
+  fi
+  curl -sLo /tmp/terragrunt \
+    "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VER}/terragrunt_linux_amd64"
+  sudo install -m 0755 /tmp/terragrunt /usr/local/bin/terragrunt
+  rm /tmp/terragrunt
+  info "Terragrunt ${TG_VER} インストール完了"
+else
+  info "Terragrunt 既にインストール済み: $(terragrunt --version 2>/dev/null | head -1)"
+fi
+
 # --- Ansible ---
 if ! command -v ansible &>/dev/null; then
   sudo apt-get install -y pipx
@@ -107,6 +124,16 @@ if ! command -v ansible &>/dev/null; then
   info "Ansible インストール完了 (pipx)"
 else
   info "Ansible 既にインストール済み: $(ansible --version | head -1)"
+fi
+
+# Ansible に boto3/botocore を追加 (AWS SSM 接続プラグインに必要)
+if command -v ansible &>/dev/null; then
+  if ! pipx runpip ansible show boto3 &>/dev/null 2>&1; then
+    pipx inject ansible boto3 botocore
+    info "boto3/botocore を Ansible 環境に追加完了 (SSM 接続用)"
+  else
+    info "boto3 は Ansible 環境に既にインストール済み"
+  fi
 fi
 
 # ansible-lint
@@ -123,13 +150,15 @@ fi
 section "4. コンテナ & クラウド CLI"
 
 # --- Docker ---
-if ! command -v docker &>/dev/null; then
-  curl -fsSL https://get.docker.com | sudo sh
-  sudo usermod -aG docker "$USER"
-  info "Docker インストール完了 (次回ログインで docker グループ有効)"
-else
-  info "Docker 既にインストール済み: $(docker --version)"
-fi
+# WSL2 では Docker Desktop (Windows側) を使用するため無効化
+# if ! command -v docker &>/dev/null; then
+#   curl -fsSL https://get.docker.com | sudo sh
+#   sudo usermod -aG docker "$USER"
+#   info "Docker インストール完了 (次回ログインで docker グループ有効)"
+# else
+#   info "Docker 既にインストール済み: $(docker --version)"
+# fi
+warn "Docker: WSL2 では Docker Desktop の WSL Integration を使用してください"
 
 # --- AWS CLI v2 ---
 if ! command -v aws &>/dev/null; then
@@ -153,24 +182,24 @@ else
   info "AWS SSM Plugin 既にインストール済み"
 fi
 
-#===============================================================================
-# リモートアクセス
-#===============================================================================
-section "5. リモートアクセス (Teleport)"
+# #===============================================================================
+# # リモートアクセス
+# #===============================================================================
+# section "5. リモートアクセス (Teleport)"
 
-if ! command -v tsh &>/dev/null; then
-  # Teleport公式リポジトリ追加
-  sudo curl -fsSL https://apt.releases.teleport.dev/gpg \
-    -o /usr/share/keyrings/teleport-archive-keyring.asc
-  echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-    https://apt.releases.teleport.dev/$(lsb_release -cs) stable/v${TELEPORT_VERSION}" \
-    | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
-  sudo apt-get update -y
-  sudo apt-get install -y teleport
-  info "Teleport v${TELEPORT_VERSION} (tsh / tctl / tbot) インストール完了"
-else
-  info "Teleport 既にインストール済み: $(tsh version 2>/dev/null || echo 'installed')"
-fi
+# if ! command -v tsh &>/dev/null; then
+#   # Teleport公式リポジトリ追加
+#   sudo curl -fsSL https://apt.releases.teleport.dev/gpg \
+#     -o /usr/share/keyrings/teleport-archive-keyring.asc
+#   echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+#     https://apt.releases.teleport.dev/$(lsb_release -cs) stable/v${TELEPORT_VERSION}" \
+#     | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
+#   sudo apt-get update -y
+#   sudo apt-get install -y teleport
+#   info "Teleport v${TELEPORT_VERSION} (tsh / tctl / tbot) インストール完了"
+# else
+#   info "Teleport 既にインストール済み: $(tsh version 2>/dev/null || echo 'installed')"
+# fi
 
 #===============================================================================
 # Git & GitHub 関連
@@ -240,6 +269,14 @@ if ! command -v claude &>/dev/null; then
 else
   info "Claude Code 既にインストール済み"
 fi
+
+# --- Gemini CLI (Google) --- 無効化
+# if ! command -v gemini &>/dev/null; then
+#   sudo npm install -g @google/gemini-cli
+#   info "Gemini CLI インストール完了"
+# else
+#   info "Gemini CLI 既にインストール済み"
+# fi
 
 # --- GitHub Copilot CLI ---
 # gh extension
@@ -368,6 +405,49 @@ else
 fi
 
 #===============================================================================
+# シェル設定 (プロンプト)
+#===============================================================================
+section "11. シェル設定"
+
+# --- カスタムプロンプト (.bashrc) ---
+# 終了コード表示 + タイムスタンプ + 改行プロンプト
+PROMPT_MARKER_BEGIN="# >>> prompt-config >>>"
+PROMPT_MARKER_END="# <<< prompt-config <<<"
+
+if ! grep -qF "$PROMPT_MARKER_BEGIN" ~/.bashrc 2>/dev/null; then
+  cat >> ~/.bashrc << 'PROMPT_BLOCK'
+
+# >>> prompt-config >>>
+# Custom prompt configuration for Bash
+# Features:
+#   - Red background on non-zero exit code
+#   - Timestamp [yyyy-mm-dd HH:mm:ss] at end of first line
+#   - Newline before command input
+
+__prompt_command() {
+    local exit_code=$?
+    local red_bg="\[\033[41m\]"
+    local reset="\[\033[0m\]"
+    local green="\[\033[01;32m\]"
+    local blue="\[\033[01;34m\]"
+
+    if [ $exit_code -ne 0 ]; then
+        local error_indicator="${red_bg} $exit_code ${reset} "
+    else
+        local error_indicator=""
+    fi
+
+    PS1="${debian_chroot:+($debian_chroot)}${green}\u@\h${reset}:${blue}\w${reset}[\D{%Y-%m-%d %H:%M:%S}]\n${error_indicator}\$ "
+}
+PROMPT_COMMAND=__prompt_command
+# <<< prompt-config <<<
+PROMPT_BLOCK
+  info "カスタムプロンプト設定を ~/.bashrc に追加"
+else
+  info "カスタムプロンプト設定は既に ~/.bashrc に存在"
+fi
+
+#===============================================================================
 # インストール結果サマリ
 #===============================================================================
 section "インストール結果サマリ"
@@ -378,19 +458,20 @@ export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
 declare -A TOOLS=(
   # カテゴリ: SSH
   ["ssh"]="ssh -V 2>&1 | head -1"
-  ["ssh-audit"]="ssh-audit --version 2>/dev/null || echo 'not found'"
+  ["ssh-audit"]="pip3 show ssh-audit 2>/dev/null | grep -i version | head -1 || echo 'not found'"
   # カテゴリ: IaC
   ["terraform"]="terraform version 2>/dev/null | head -1 || echo 'not found'"
   ["tflint"]="tflint --version 2>/dev/null | head -1 || echo 'not found'"
   ["terraform-docs"]="terraform-docs version 2>/dev/null || echo 'not found'"
+  ["terragrunt"]="terragrunt --version 2>/dev/null | head -1 || echo 'not found'"
   ["ansible"]="ansible --version 2>/dev/null | head -1 || echo 'not found'"
   ["ansible-lint"]="ansible-lint --version 2>/dev/null | head -1 || echo 'not found'"
   # カテゴリ: コンテナ & クラウド
-  ["docker"]="docker --version 2>/dev/null || echo 'not found'"
+  # ["docker"]="docker --version 2>/dev/null || echo 'not found'"
   ["aws"]="aws --version 2>/dev/null || echo 'not found'"
   ["ssm-plugin"]="session-manager-plugin --version 2>/dev/null || echo 'not found'"
   # カテゴリ: リモートアクセス
-  ["tsh (Teleport)"]="tsh version 2>/dev/null || echo 'not found'"
+  # ["tsh (Teleport)"]="tsh version 2>/dev/null || echo 'not found'"
   # カテゴリ: Git & GitHub
   ["git"]="git --version 2>/dev/null || echo 'not found'"
   ["gh"]="gh --version 2>/dev/null | head -1 || echo 'not found'"
@@ -399,6 +480,7 @@ declare -A TOOLS=(
   ["ghq"]="ghq --version 2>/dev/null || echo 'not found'"
   # カテゴリ: AI CLI
   ["claude"]="claude --version 2>/dev/null || echo 'not found'"
+  # ["gemini"]="gemini --version 2>/dev/null || echo 'not found'"
   ["aider"]="aider --version 2>/dev/null | head -1 || echo 'not found'"
   # カテゴリ: モニタリング
   ["alloy"]="alloy --version 2>/dev/null | head -1 || echo 'not found'"
@@ -411,7 +493,7 @@ declare -A TOOLS=(
   ["bat"]="batcat --version 2>/dev/null | head -1 || bat --version 2>/dev/null | head -1 || echo 'not found'"
   ["ripgrep"]="rg --version 2>/dev/null | head -1 || echo 'not found'"
   ["fd"]="fdfind --version 2>/dev/null | head -1 || fd --version 2>/dev/null | head -1 || echo 'not found'"
-  ["sops"]="sops --version 2>/dev/null || echo 'not found'"
+  ["sops"]="sops --version --disable-version-check 2>/dev/null || echo 'not found'"
   ["age"]="age --version 2>/dev/null || echo 'not found'"
   ["direnv"]="direnv version 2>/dev/null || echo 'not found'"
   ["node"]="node --version 2>/dev/null || echo 'not found'"
@@ -420,10 +502,11 @@ declare -A TOOLS=(
 echo ""
 printf "%-20s %s\n" "ツール" "バージョン"
 printf "%-20s %s\n" "────────────────────" "──────────────────────────────────"
-for tool in $(echo "${!TOOLS[@]}" | tr ' ' '\n' | sort); do
-  version=$(eval "${TOOLS[$tool]}" 2>/dev/null || echo "not found")
+while IFS= read -r tool; do
+  version=$(eval "${TOOLS[$tool]}" 2>/dev/null | head -1 || true)
+  [[ -z "$version" ]] && version="not found"
   printf "%-20s %s\n" "$tool" "$version"
-done
+done < <(printf '%s\n' "${!TOOLS[@]}" | sort)
 
 #===============================================================================
 # セットアップ後の手動設定リマインダー
@@ -444,23 +527,20 @@ cat << 'REMINDER'
 │    aws configure                                                │
 │    (または ~/.aws/credentials にプロファイル設定)               │
 │                                                                 │
-│ 4. Teleport クラスタへログイン                                   │
-│    tsh login --proxy=<your-cluster>:443                         │
-│                                                                 │
-│ 5. AI CLI の APIキー設定                                         │
+│ 4. AI CLI の APIキー設定                                         │
 │    export ANTHROPIC_API_KEY="sk-ant-..."  # Claude Code         │
 │    export OPENAI_API_KEY="sk-..."         # aider等             │
 │                                                                 │
-│ 6. Grafana Cloud トークン設定                                    │
+│ 5. Grafana Cloud トークン設定                                    │
 │    → alloy の設定ファイルに記載                                 │
 │                                                                 │
-│ 7. 1Password SSH Agent (Windows側)                              │
+│ 6. 1Password SSH Agent (Windows側)                              │
 │    → WSLの ~/.ssh/config に IdentityAgent 設定                  │
 │                                                                 │
-│ 8. direnv フック追加                                             │
+│ 7. direnv フック追加                                             │
 │    echo 'eval "$(direnv hook bash)"' >> ~/.bashrc               │
 │                                                                 │
-│ 9. シェル再起動                                                  │
+│ 8. シェル再起動                                                  │
 │    exec $SHELL -l                                               │
 └─────────────────────────────────────────────────────────────────┘
 REMINDER
