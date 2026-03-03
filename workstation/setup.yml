@@ -1,0 +1,43 @@
+---
+# setup.yml - ワークステーション環境セットアップ (メインPlaybook)
+#
+# 使い方:
+#   全ロール実行:       ansible-playbook -i inventory.yml setup.yml --ask-become-pass
+#   ドライラン:         ansible-playbook -i inventory.yml setup.yml --ask-become-pass --check
+#   カテゴリ指定実行:   ansible-playbook -i inventory.yml setup.yml --ask-become-pass --tags "base,ssh"
+#
+# 対象OS: Ubuntu 22.04 / 24.04 (WSL2含む)
+
+- name: ワークステーション環境セットアップ
+  hosts: localhost
+  become: false
+  gather_facts: true
+
+  pre_tasks:
+    - name: root での直接実行を禁止
+      ansible.builtin.fail:
+        msg: "root で直接実行しないでください。sudo 権限のある一般ユーザーで実行してください。"
+      when: ansible_user_id == "root"
+      tags: always
+
+  roles:
+    - role: base
+      tags: base
+    - role: ssh
+      tags: ssh
+    - role: iac
+      tags: iac
+    - role: cloud_cli
+      tags: cloud_cli
+    - role: git
+      tags: git
+    - role: ai_cli
+      tags: ai_cli
+    - role: monitoring
+      tags: monitoring
+    - role: security
+      tags: security
+    - role: utils
+      tags: utils
+    - role: shell_config
+      tags: shell_config

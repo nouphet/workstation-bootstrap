@@ -1,0 +1,87 @@
+---
+# utils: fzf, bat, ripgrep, fd, yq, sops, age
+
+# ── apt でインストールできるツール ──
+
+- name: fzf, bat, ripgrep, fd-find, age をインストール (apt)
+  become: true
+  ansible.builtin.apt:
+    name:
+      - fzf
+      - bat
+      - ripgrep
+      - fd-find
+      - age
+    state: present
+
+# ── bat: Ubuntu では batcat としてインストールされるためエイリアス作成 ──
+
+- name: ~/.local/bin ディレクトリを作成
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.local/bin"
+    state: directory
+    mode: "0755"
+
+- name: bat シンボリックリンクを作成 (batcat → bat)
+  ansible.builtin.file:
+    src: /usr/bin/batcat
+    dest: "{{ ansible_env.HOME }}/.local/bin/bat"
+    state: link
+    force: true
+
+# ── fd: Ubuntu では fdfind としてインストールされるためエイリアス作成 ──
+
+- name: fd シンボリックリンクを作成 (fdfind → fd)
+  ansible.builtin.file:
+    src: /usr/bin/fdfind
+    dest: "{{ ansible_env.HOME }}/.local/bin/fd"
+    state: link
+    force: true
+
+# ── yq ──
+
+- name: yq がインストール済みか確認
+  ansible.builtin.command: yq --version
+  register: yq_check
+  changed_when: false
+  failed_when: false
+
+- name: yq をインストール
+  when: yq_check.rc != 0
+  block:
+    - name: yq の最新バージョンを取得
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/mikefarah/yq/releases/latest
+        return_content: true
+      register: yq_latest
+
+    - name: yq をダウンロード・配置
+      become: true
+      ansible.builtin.get_url:
+        url: "https://github.com/mikefarah/yq/releases/download/{{ yq_latest.json.tag_name }}/yq_linux_amd64"
+        dest: /usr/local/bin/yq
+        mode: "0755"
+
+# ── sops ──
+
+- name: sops がインストール済みか確認
+  ansible.builtin.command: sops --version
+  register: sops_check
+  changed_when: false
+  failed_when: false
+
+- name: sops をインストール
+  when: sops_check.rc != 0
+  block:
+    - name: sops の最新バージョンを取得
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/getsops/sops/releases/latest
+        return_content: true
+      register: sops_latest
+
+    - name: sops をダウンロード・配置
+      become: true
+      ansible.builtin.get_url:
+        url: "https://github.com/getsops/sops/releases/download/{{ sops_latest.json.tag_name }}/sops-{{ sops_latest.json.tag_name }}.linux.amd64"
+        dest: /usr/local/bin/sops
+        mode: "0755"

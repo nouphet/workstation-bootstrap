@@ -52,6 +52,10 @@ section "2. SSH 関連"
 sudo apt-get install -y openssh-client openssh-server
 info "OpenSSH インストール完了"
 
+# keychain (ssh-agent セッション再利用)
+sudo apt-get install -y keychain
+info "keychain インストール完了"
+
 # ssh-audit (SSH設定の監査ツール)
 if ! command -v ssh-audit &>/dev/null; then
   pip3 install ssh-audit --break-system-packages 2>/dev/null || pip3 install ssh-audit
@@ -459,6 +463,7 @@ declare -A TOOLS=(
   # カテゴリ: SSH
   ["ssh"]="ssh -V 2>&1 | head -1"
   ["ssh-audit"]="pip3 show ssh-audit 2>/dev/null | grep -i version | head -1 || echo 'not found'"
+  ["keychain"]="keychain --version 2>&1 | grep -oP 'keychain \S+' || echo 'not found'"
   # カテゴリ: IaC
   ["terraform"]="terraform version 2>/dev/null | head -1 || echo 'not found'"
   ["tflint"]="tflint --version 2>/dev/null | head -1 || echo 'not found'"

@@ -1,0 +1,35 @@
+---
+# base: システム更新 & 基本パッケージ
+
+- name: apt キャッシュを更新
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: 基本パッケージをインストール
+  become: true
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - git
+      - unzip
+      - jq
+      - tree
+      - make
+      - gcc
+      - g++
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - software-properties-common
+      - apt-transport-https
+      - python3
+      - python3-pip
+      - python3-venv
+      - python3-full
+      - bash-completion
+      - direnv
+      - pipx
+    state: present

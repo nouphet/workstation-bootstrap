@@ -1,0 +1,22 @@
+---
+# shell_config: カスタムプロンプト設定 (.bashrc)
+
+- name: カスタムプロンプト設定が .bashrc に存在するか確認
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    regexp: "{{ prompt_marker_begin | regex_escape() }}"
+    state: absent
+  check_mode: true
+  changed_when: false
+  register: prompt_check
+
+- name: カスタムプロンプト設定を .bashrc に追加
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    marker: "# {mark} prompt-config"
+    marker_begin: ">>>"
+    marker_end: "<<<"
+    block: "{{ lookup('template', 'prompt-config.bash.j2') }}"
+    create: true
+    mode: "0644"
+  when: not prompt_check.found

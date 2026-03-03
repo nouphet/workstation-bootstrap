@@ -1,0 +1,5 @@
+---
+# iac: バージョン設定
+terraform_version: "1.10.5"
+# 空文字列 = GitHub API から最新版を自動取得
+terragrunt_version: ""

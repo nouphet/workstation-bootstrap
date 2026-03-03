@@ -1,0 +1,32 @@
+---
+# security: Trivy (コンテナ/IaC脆弱性スキャン, tfsec統合)
+
+- name: Trivy がインストール済みか確認
+  ansible.builtin.command: trivy --version
+  register: trivy_check
+  changed_when: false
+  failed_when: false
+
+- name: Trivy をインストール
+  when: trivy_check.rc != 0
+  block:
+    - name: Trivy の GPG 鍵を追加
+      become: true
+      ansible.builtin.shell: |
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | tee /usr/share/keyrings/trivy.gpg > /dev/null
+      args:
+        creates: /usr/share/keyrings/trivy.gpg
+
+    - name: Trivy の apt リポジトリを追加
+      become: true
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main"
+        filename: trivy
+        state: present
+
+    - name: Trivy をインストール (apt)
+      become: true
+      ansible.builtin.apt:
+        name: trivy
+        state: present
+        update_cache: true

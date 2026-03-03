@@ -1,0 +1,73 @@
+---
+# cloud_cli: AWS CLI v2, SSM Plugin
+
+# ── Docker ──
+# WSL2 では Docker Desktop (Windows側) の WSL Integration を使用するためスキップ
+
+- name: "Docker: WSL2 では Docker Desktop の WSL Integration を使用してください"
+  ansible.builtin.debug:
+    msg: "Docker は WSL2 では Docker Desktop の WSL Integration を使用してください"
+
+# ── AWS CLI v2 ──
+
+- name: AWS CLI がインストール済みか確認
+  ansible.builtin.command: aws --version
+  register: aws_check
+  changed_when: false
+  failed_when: false
+
+- name: AWS CLI v2 をインストール
+  when: aws_check.rc != 0
+  block:
+    - name: AWS CLI v2 をダウンロード
+      ansible.builtin.get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp/awscliv2.zip
+        mode: "0644"
+
+    - name: AWS CLI v2 を展開
+      ansible.builtin.unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp/
+        remote_src: true
+
+    - name: AWS CLI v2 インストーラを実行
+      become: true
+      ansible.builtin.command: /tmp/aws/install
+      args:
+        creates: /usr/local/bin/aws
+
+    - name: AWS CLI v2 ダウンロードファイルを削除
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/awscliv2.zip
+        - /tmp/aws
+
+# ── AWS Session Manager Plugin ──
+
+- name: SSM Plugin がインストール済みか確認
+  ansible.builtin.command: session-manager-plugin --version
+  register: ssm_check
+  changed_when: false
+  failed_when: false
+
+- name: AWS SSM Plugin をインストール
+  when: ssm_check.rc != 0
+  block:
+    - name: SSM Plugin deb パッケージをダウンロード
+      ansible.builtin.get_url:
+        url: https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb
+        dest: /tmp/session-manager-plugin.deb
+        mode: "0644"
+
+    - name: SSM Plugin をインストール (dpkg)
+      become: true
+      ansible.builtin.apt:
+        deb: /tmp/session-manager-plugin.deb
+
+    - name: SSM Plugin deb パッケージを削除
+      ansible.builtin.file:
+        path: /tmp/session-manager-plugin.deb
+        state: absent

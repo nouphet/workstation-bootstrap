@@ -1,0 +1,32 @@
+---
+# monitoring: Grafana Alloy (旧 Grafana Agent)
+
+- name: Alloy がインストール済みか確認
+  ansible.builtin.command: alloy --version
+  register: alloy_check
+  changed_when: false
+  failed_when: false
+
+- name: Grafana Alloy をインストール
+  when: alloy_check.rc != 0
+  block:
+    - name: Grafana の GPG 鍵を追加
+      become: true
+      ansible.builtin.shell: |
+        wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor | tee /etc/apt/keyrings/grafana.gpg > /dev/null
+      args:
+        creates: /etc/apt/keyrings/grafana.gpg
+
+    - name: Grafana の apt リポジトリを追加
+      become: true
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main"
+        filename: grafana
+        state: present
+
+    - name: Grafana Alloy をインストール (apt)
+      become: true
+      ansible.builtin.apt:
+        name: alloy
+        state: present
+        update_cache: true

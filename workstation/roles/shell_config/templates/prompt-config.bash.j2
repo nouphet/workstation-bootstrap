@@ -1,0 +1,24 @@
+{{ prompt_marker_begin }}
+# Custom prompt configuration for Bash
+# Features:
+#   - Red background on non-zero exit code
+#   - Timestamp [yyyy-mm-dd HH:mm:ss] at end of first line
+#   - Newline before command input
+
+__prompt_command() {
+    local exit_code=$?
+    local red_bg="\[\033[41m\]"
+    local reset="\[\033[0m\]"
+    local green="\[\033[01;32m\]"
+    local blue="\[\033[01;34m\]"
+
+    if [ $exit_code -ne 0 ]; then
+        local error_indicator="${red_bg} $exit_code ${reset} "
+    else
+        local error_indicator=""
+    fi
+
+    PS1="${debian_chroot:+($debian_chroot)}${green}\u@\h${reset}:${blue}\w${reset}[\D{%Y-%m-%d %H:%M:%S}]\n${error_indicator}\$ "
+}
+PROMPT_COMMAND=__prompt_command
+{{ prompt_marker_end }}

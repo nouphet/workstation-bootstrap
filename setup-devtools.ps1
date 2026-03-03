@@ -197,6 +197,21 @@ else {
     Write-Info "Claude Code 既にインストール済み"
 }
 
+# Gemini CLI
+if (-not (Get-Command gemini -ErrorAction SilentlyContinue)) {
+    Write-Host "    Gemini CLI をインストール中..." -ForegroundColor Gray
+    npm install -g @google/gemini-cli 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Info "Gemini CLI インストール完了"
+    }
+    else {
+        Write-Warn "Gemini CLI: npm のPATH反映後に再試行 → npm install -g @google/gemini-cli"
+    }
+}
+else {
+    Write-Info "Gemini CLI 既にインストール済み"
+}
+
 # GitHub Copilot CLI (gh extension)
 $copilotInstalled = gh extension list 2>$null | Select-String "copilot"
 if (-not $copilotInstalled) {
@@ -355,6 +370,7 @@ $tools = [ordered]@{
     "node"           = { node --version 2>$null }
     "python"         = { python --version 2>$null }
     "claude"         = { claude --version 2>$null }
+    "gemini"         = { gemini --version 2>$null }
     "aider"          = { aider --version 2>$null | Select-Object -First 1 }
     "trivy"          = { trivy --version 2>$null | Select-Object -First 1 }
     "sops"           = { sops --version 2>$null }

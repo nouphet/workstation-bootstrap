@@ -1,0 +1,28 @@
+---
+# ssh: OpenSSH, keychain, ssh-audit
+
+- name: OpenSSH をインストール
+  become: true
+  ansible.builtin.apt:
+    name:
+      - openssh-client
+      - openssh-server
+    state: present
+
+- name: keychain をインストール
+  become: true
+  ansible.builtin.apt:
+    name: keychain
+    state: present
+
+- name: ssh-audit がインストール済みか確認
+  ansible.builtin.command: pip3 show ssh-audit
+  register: ssh_audit_check
+  changed_when: false
+  failed_when: false
+
+- name: ssh-audit をインストール (pip3)
+  ansible.builtin.pip:
+    name: ssh-audit
+    extra_args: --break-system-packages
+  when: ssh_audit_check.rc != 0

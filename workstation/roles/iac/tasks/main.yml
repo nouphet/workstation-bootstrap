@@ -1,0 +1,184 @@
+---
+# iac: Terraform, tflint, terraform-docs, Terragrunt, Ansible, ansible-lint
+
+# ── Terraform ──
+
+- name: Terraform がインストール済みか確認
+  ansible.builtin.command: terraform version
+  register: terraform_check
+  changed_when: false
+  failed_when: false
+
+- name: Terraform をダウンロード
+  ansible.builtin.get_url:
+    url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
+    dest: /tmp/terraform.zip
+    mode: "0644"
+  when: terraform_check.rc != 0
+
+- name: Terraform を /usr/local/bin に展開
+  become: true
+  ansible.builtin.unarchive:
+    src: /tmp/terraform.zip
+    dest: /usr/local/bin/
+    remote_src: true
+    mode: "0755"
+  when: terraform_check.rc != 0
+
+- name: Terraform ダウンロードファイルを削除
+  ansible.builtin.file:
+    path: /tmp/terraform.zip
+    state: absent
+  when: terraform_check.rc != 0
+
+# ── tflint ──
+
+- name: tflint がインストール済みか確認
+  ansible.builtin.command: tflint --version
+  register: tflint_check
+  changed_when: false
+  failed_when: false
+
+- name: tflint インストールスクリプトをダウンロード・実行
+  ansible.builtin.shell: >
+    curl -sL https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+  args:
+    creates: /usr/local/bin/tflint
+  when: tflint_check.rc != 0
+
+# ── terraform-docs ──
+
+- name: terraform-docs がインストール済みか確認
+  ansible.builtin.command: terraform-docs version
+  register: tfdocs_check
+  changed_when: false
+  failed_when: false
+
+- name: terraform-docs の最新バージョンを取得
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/terraform-docs/terraform-docs/releases/latest
+    return_content: true
+  register: tfdocs_latest
+  when: tfdocs_check.rc != 0
+
+- name: terraform-docs をダウンロード・展開・配置
+  when: tfdocs_check.rc != 0
+  block:
+    - name: terraform-docs をダウンロード
+      ansible.builtin.get_url:
+        url: "https://github.com/terraform-docs/terraform-docs/releases/download/{{ tfdocs_latest.json.tag_name }}/terraform-docs-{{ tfdocs_latest.json.tag_name }}-linux-amd64.tar.gz"
+        dest: /tmp/terraform-docs.tar.gz
+        mode: "0644"
+
+    - name: terraform-docs を展開
+      ansible.builtin.unarchive:
+        src: /tmp/terraform-docs.tar.gz
+        dest: /tmp/
+        remote_src: true
+
+    - name: terraform-docs を /usr/local/bin に配置
+      become: true
+      ansible.builtin.copy:
+        src: /tmp/terraform-docs
+        dest: /usr/local/bin/terraform-docs
+        mode: "0755"
+        remote_src: true
+
+    - name: terraform-docs ダウンロードファイルを削除
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/terraform-docs.tar.gz
+        - /tmp/terraform-docs
+
+# ── Terragrunt ──
+
+- name: Terragrunt がインストール済みか確認
+  ansible.builtin.command: terragrunt --version
+  register: tg_check
+  changed_when: false
+  failed_when: false
+
+- name: Terragrunt の最新バージョンを取得
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/gruntwork-io/terragrunt/releases/latest
+    return_content: true
+  register: tg_latest
+  when:
+    - tg_check.rc != 0
+    - terragrunt_version == ""
+
+- name: Terragrunt のバージョンを決定
+  ansible.builtin.set_fact:
+    tg_resolved_version: "{{ terragrunt_version if terragrunt_version != '' else (tg_latest.json.tag_name | regex_replace('^v', '')) }}"
+  when: tg_check.rc != 0
+
+- name: Terragrunt をダウンロード・配置
+  when: tg_check.rc != 0
+  block:
+    - name: Terragrunt バイナリをダウンロード
+      ansible.builtin.get_url:
+        url: "https://github.com/gruntwork-io/terragrunt/releases/download/v{{ tg_resolved_version }}/terragrunt_linux_amd64"
+        dest: /tmp/terragrunt
+        mode: "0755"
+
+    - name: Terragrunt を /usr/local/bin に配置
+      become: true
+      ansible.builtin.copy:
+        src: /tmp/terragrunt
+        dest: /usr/local/bin/terragrunt
+        mode: "0755"
+        remote_src: true
+
+    - name: Terragrunt ダウンロードファイルを削除
+      ansible.builtin.file:
+        path: /tmp/terragrunt
+        state: absent
+
+# ── Ansible (pipx) ──
+
+- name: Ansible がインストール済みか確認
+  ansible.builtin.command: ansible --version
+  register: ansible_check
+  changed_when: false
+  failed_when: false
+
+- name: Ansible をインストール (pipx)
+  community.general.pipx:
+    name: ansible
+    install_deps: true
+  when: ansible_check.rc != 0
+
+- name: pipx の PATH を確保
+  ansible.builtin.command: pipx ensurepath
+  changed_when: false
+  when: ansible_check.rc != 0
+
+- name: boto3 が Ansible 環境にインストール済みか確認
+  ansible.builtin.command: pipx runpip ansible show boto3
+  register: boto3_check
+  changed_when: false
+  failed_when: false
+
+- name: boto3/botocore を Ansible 環境に追加 (SSM接続用)
+  community.general.pipx:
+    name: ansible
+    inject_packages:
+      - boto3
+      - botocore
+    state: inject
+  when: boto3_check.rc != 0
+
+# ── ansible-lint ──
+
+- name: ansible-lint がインストール済みか確認
+  ansible.builtin.command: ansible-lint --version
+  register: ansible_lint_check
+  changed_when: false
+  failed_when: false
+
+- name: ansible-lint をインストール (pipx)
+  community.general.pipx:
+    name: ansible-lint
+  when: ansible_lint_check.rc != 0

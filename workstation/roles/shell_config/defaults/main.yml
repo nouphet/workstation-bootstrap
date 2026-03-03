@@ -1,0 +1,4 @@
+---
+# shell_config: マーカー文字列
+prompt_marker_begin: "# >>> prompt-config >>>"
+prompt_marker_end: "# <<< prompt-config <<<"

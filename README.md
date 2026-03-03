@@ -1,6 +1,15 @@
 # 開発環境セットアップガイド
 
+[![GitHub](https://img.shields.io/badge/repo-workstation--bootstrap-blue?logo=github)](https://github.com/nouphet/workstation-bootstrap)
+
 インフラ自動化・AI CLI・開発ツールを一括インストールするためのスクリプトと、各ツールの解説です。
+
+**リポジトリ:** https://github.com/nouphet/workstation-bootstrap
+
+```bash
+git clone https://github.com/nouphet/workstation-bootstrap.git
+cd workstation-bootstrap
+```
 
 ## スクリプト一覧
 
@@ -70,6 +79,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 | ツール | 用途 | Linux | Windows |
 |---|---|:---:|:---:|
 | Terraform | インフラ定義・プロビジョニング | ✅ | ✅ |
+| Terragrunt | Terraform のラッパー（マルチアカウント/DRY管理） | ✅ | - |
 | tflint | Terraform の Linter | ✅ | ✅ |
 | terraform-docs | Terraform コードからドキュメント自動生成 | ✅ | ✅ |
 | Ansible | 構成管理・サーバーセットアップの自動化 | ✅ | - (※) |
@@ -101,6 +111,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 | ツール | 用途 | Linux | Windows |
 |---|---|:---:|:---:|
 | Claude Code | Anthropic の AI コーディングアシスタント | ✅ | ✅ |
+| Gemini CLI | Google の AI コーディングアシスタント | ✅ | ✅ |
 | GitHub Copilot CLI | gh 拡張の AI アシスタント | ✅ | ✅ |
 | aider | AI ペアプログラミング | ✅ | ✅ |
 
@@ -306,12 +317,14 @@ tsh login --proxy=<your-cluster>:443
 ```bash
 # Linux / WSL (.bashrc に追記)
 export ANTHROPIC_API_KEY="sk-ant-..."   # Claude Code
+export GEMINI_API_KEY="..."             # Gemini CLI
 export OPENAI_API_KEY="sk-..."          # aider 等
 ```
 
 ```powershell
 # Windows (永続化)
 [Environment]::SetEnvironmentVariable("ANTHROPIC_API_KEY", "sk-ant-...", "User")
+[Environment]::SetEnvironmentVariable("GEMINI_API_KEY", "...", "User")
 [Environment]::SetEnvironmentVariable("OPENAI_API_KEY", "sk-...", "User")
 ```
 

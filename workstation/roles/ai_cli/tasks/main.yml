@@ -1,0 +1,54 @@
+---
+# ai_cli: Node.js, Claude Code, aider
+
+# ── Node.js ──
+
+- name: Node.js がインストール済みか確認
+  ansible.builtin.command: node --version
+  register: node_check
+  changed_when: false
+  failed_when: false
+
+- name: Node.js をインストール (NodeSource 22.x)
+  when: node_check.rc != 0
+  block:
+    - name: NodeSource セットアップスクリプトを実行
+      become: true
+      ansible.builtin.shell: curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Node.js をインストール (apt)
+      become: true
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+        update_cache: true
+
+# ── Claude Code ──
+
+- name: Claude Code がインストール済みか確認
+  ansible.builtin.command: claude --version
+  register: claude_check
+  changed_when: false
+  failed_when: false
+
+- name: Claude Code をインストール (npm global)
+  become: true
+  community.general.npm:
+    name: "@anthropic-ai/claude-code"
+    global: true
+  when: claude_check.rc != 0
+
+# ── aider ──
+
+- name: aider がインストール済みか確認
+  ansible.builtin.command: aider --version
+  register: aider_check
+  changed_when: false
+  failed_when: false
+
+- name: aider をインストール (pipx)
+  community.general.pipx:
+    name: aider-chat
+  when: aider_check.rc != 0
